@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071b1b">
+  <meta name="description" content="Kiptenden Youths WhatsApp bot pairing page">
+  <title>Kiptenden Youths Pair | Pair Code + QR Login</title>
+  <style>
+    :root {
+      --bg: #061314;
+      --bg-soft: #0b2021;
+      --panel: rgba(12, 35, 35, .86);
+      --panel-soft: rgba(255,255,255,.045);
+      --line: rgba(175, 238, 219, .14);
+      --text: #f2fffb;
+      --muted: #9ab7b2;
+      --muted-2: #6f908b;
+      --green: #38e29d;
+      --green-2: #a0ffd3;
+      --teal: #5de4e1;
+      --danger: #ff9b9b;
+      --warning: #ffd88a;
+      --shadow: 0 30px 90px rgba(0,0,0,.36);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 14% 8%, rgba(56,226,157,.12), transparent 28rem),
+        radial-gradient(circle at 88% 28%, rgba(93,228,225,.08), transparent 26rem),
+        linear-gradient(145deg, #061112 0%, #071b1b 48%, #041011 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    a { color: inherit; text-decoration: none; }
+    .shell { width: min(1120px, calc(100% - 36px)); margin: 0 auto; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(175,238,219,.09);
+      background: rgba(4, 16, 17, .82);
+      backdrop-filter: blur(18px);
+    }
+    .nav { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(160,255,211,.35); }
+    .brand-copy { display: grid; gap: 1px; }
+    .brand-title { font-weight: 800; letter-spacing: .02em; font-size: .94rem; white-space: nowrap; }
+    .brand-sub { color: var(--green); font-size: .58rem; letter-spacing: .22em; font-weight: 800; }
+    .nav-links { display: flex; align-items: center; gap: 22px; color: var(--muted); font-size: .8rem; }
+    .nav-links a:hover, .nav-links a.active { color: var(--green); }
+    .nav-cta { border: 1px solid rgba(56,226,157,.35); color: var(--green); border-radius: 999px; padding: 9px 15px; font-size: .75rem; font-weight: 750; }
+    .nav-cta:hover { background: rgba(56,226,157,.1); }
+    main { padding: 72px 0 58px; }
+    .hero { max-width: 760px; margin: 0 auto 30px; text-align: center; }
+    .eyebrow { color: var(--green); font: 800 .7rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .22em; }
+    h1 { margin: 14px 0 10px; font-size: clamp(2rem, 5vw, 3.65rem); line-height: 1.06; letter-spacing: -.045em; }
+    .hero p { max-width: 610px; margin: 0 auto; color: var(--muted); font-size: 1rem; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(300px, .85fr); gap: 22px; align-items: start; }
+    .panel { border: 1px solid var(--line); border-radius: 24px; background: linear-gradient(145deg, rgba(15,44,43,.9), rgba(6,22,23,.86)); box-shadow: var(--shadow); }
+    .pair-panel { padding: clamp(24px, 4vw, 42px); }
+    .panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 26px; }
+    .panel-heading h2 { margin: 0; font-size: 1.2rem; }
+    .panel-heading p { margin: 5px 0 0; color: var(--muted); font-size: .86rem; }
+    .badge { flex: none; border: 1px solid rgba(56,226,157,.28); border-radius: 999px; padding: 7px 11px; color: var(--green-2); background: rgba(56,226,157,.08); font-size: .67rem; font-weight: 800; white-space: nowrap; }
+    .step { display: none; }
+    .step.active { display: block; animation: rise .28s ease both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    label { display: block; margin-bottom: 8px; color: var(--green-2); font-size: .76rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    input { width: 100%; border: 1px solid rgba(175,238,219,.18); border-radius: 12px; padding: 14px 15px; color: var(--text); background: rgba(0,0,0,.2); outline: none; font: inherit; font-size: 1rem; transition: border-color .2s, box-shadow .2s; }
+    input:focus { border-color: var(--green); box-shadow: 0 0 0 4px rgba(56,226,157,.1); }
+    input::placeholder { color: var(--muted-2); }
+    .hint { margin: 8px 0 0; color: var(--muted-2); font-size: .76rem; }
+    .button { width: 100%; margin-top: 19px; border: 0; border-radius: 12px; padding: 14px 17px; color: #032018; background: linear-gradient(135deg, var(--green-2), var(--green)); font: inherit; font-weight: 850; cursor: pointer; transition: transform .2s, filter .2s, opacity .2s; }
+    .button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .button.secondary { color: var(--green-2); border: 1px solid rgba(56,226,157,.24); background: rgba(56,226,157,.07); }
+    .status { min-height: 23px; margin-top: 13px; color: var(--muted); text-align: center; font-size: .8rem; }
+    .status.error { color: var(--danger); }
+    .status.success { color: var(--green-2); }
+    .spinner { display: inline-block; width: 14px; height: 14px; margin-right: 7px; border: 2px solid rgba(255,255,255,.18); border-top-color: var(--green); border-radius: 50%; vertical-align: -2px; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .code-box { margin: 18px 0; padding: 25px 16px; border: 1px solid rgba(56,226,157,.28); border-radius: 16px; background: rgba(56,226,157,.07); text-align: center; }
+    .code { color: var(--green-2); font: 900 clamp(2rem, 8vw, 3.25rem)/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .16em; }
+    .code-label { margin-top: 8px; color: var(--muted); font-size: .77rem; }
+    .method-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 20px; }
+    .method-tab { border: 1px solid rgba(175,238,219,.15); border-radius: 10px; padding: 11px 12px; color: var(--muted); background: rgba(0,0,0,.16); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+    .method-tab.active { border-color: rgba(56,226,157,.45); color: var(--green-2); background: rgba(56,226,157,.1); }
+    .qr-box { display: grid; justify-items: center; gap: 12px; margin: 18px 0; padding: 20px; border: 1px solid rgba(56,226,157,.28); border-radius: 16px; background: rgba(56,226,157,.07); text-align: center; }
+    .qr-box img { width: min(290px, 100%); aspect-ratio: 1; padding: 10px; border-radius: 12px; background: #fff; image-rendering: pixelated; }
+    .qr-label { color: var(--muted); font-size: .77rem; }
+    .instructions { margin-top: 18px; padding: 17px 18px; border: 1px solid rgba(175,238,219,.1); border-radius: 14px; background: rgba(0,0,0,.14); }
+    .instructions h3 { margin: 0 0 10px; font-size: .86rem; }
+    .instructions ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: .82rem; }
+    .instructions li { margin: 6px 0; }
+    .success-box { padding: 18px; border: 1px solid rgba(56,226,157,.35); border-radius: 15px; background: rgba(56,226,157,.08); }
+    .success-title { color: var(--green-2); font-weight: 800; font-size: .88rem; }
+    .session { max-height: 125px; overflow: auto; margin-top: 11px; padding: 12px; border-radius: 9px; color: #c6fff0; background: rgba(0,0,0,.35); font: .72rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+    .copy { margin-top: 11px; padding: 10px 13px; border: 1px solid rgba(56,226,157,.3); border-radius: 9px; color: var(--green-2); background: rgba(56,226,157,.08); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; }
+    .next-steps { margin-top: 16px; padding: 15px; border: 1px solid rgba(255,216,138,.2); border-radius: 13px; color: var(--warning); background: rgba(255,216,138,.07); font-size: .79rem; }
+    .back { margin-top: 12px; border: 1px solid rgba(175,238,219,.13); border-radius: 10px; padding: 11px; color: var(--muted); background: transparent; font: inherit; font-size: .78rem; cursor: pointer; }
+    .side { padding: 28px; }
+    .side h2 { margin: 0 0 8px; font-size: 1.05rem; }
+    .side > p { margin: 0 0 22px; color: var(--muted); font-size: .84rem; }
+    .timeline { display: grid; gap: 17px; }
+    .timeline-item { display: grid; grid-template-columns: 31px 1fr; gap: 11px; align-items: start; }
+    .number { display: grid; place-items: center; width: 29px; height: 29px; border: 1px solid rgba(56,226,157,.35); border-radius: 50%; color: var(--green); background: rgba(56,226,157,.08); font-size: .76rem; font-weight: 850; }
+    .timeline-item strong { display: block; margin: 2px 0 3px; font-size: .82rem; }
+    .timeline-item span { color: var(--muted); font-size: .77rem; }
+    .trust { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 26px; }
+    .trust span { border: 1px solid rgba(175,238,219,.1); border-radius: 10px; padding: 10px 5px; color: var(--muted); background: rgba(255,255,255,.025); text-align: center; font-size: .68rem; }
+    .notice { margin-top: 17px; padding: 12px 13px; border-left: 2px solid var(--teal); color: var(--muted); background: rgba(93,228,225,.05); font-size: .75rem; }
+    footer { padding: 26px 0 32px; border-top: 1px solid rgba(175,238,219,.08); color: var(--muted-2); text-align: center; font-size: .73rem; }
+    footer strong { color: var(--green-2); }
+    @media (max-width: 780px) {
+      .nav-links { display: none; }
+      .nav-cta { margin-left: auto; }
+      main { padding-top: 45px; }
+      .layout { grid-template-columns: 1fr; }
+      .hero { text-align: left; }
+      .hero p { margin-left: 0; }
+    }
+    @media (max-width: 480px) {
+      .shell { width: min(100% - 24px, 1120px); }
+      .brand-title { font-size: .82rem; }
+      .nav-cta { padding: 8px 10px; font-size: .67rem; }
+      .pair-panel, .side { padding: 21px; }
+      .panel-heading { display: block; }
+      .badge { display: inline-block; margin-top: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell nav">
+      <a class="brand" href="/" aria-label="Kiptenden Youths home">
+        <img src="/kiptenden-youths-logo-clean.png" alt="Kiptenden Youths emblem">
+        <span class="brand-copy"><span class="brand-title">KIPTENDEN YOUTHS</span><span class="brand-sub">PAIR CODE + QR</span></span>
+      </a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="/">Home</a>
+        <a class="active" href="/pair">Pair Code + QR</a>
+        <a href="/pair/qr">Open QR Pairing</a>
+        <a href="#how">How It Works</a>
+      </nav>
+      <a class="nav-cta" href="/health">Service Status</a>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">// PAIR CODE + QR LOGIN</div>
+      <h1>Connect Your WhatsApp</h1>
+      <p>Link your WhatsApp number to the Kiptenden Youths community bot and receive a secure session ID for your Render deployment.</p>
+    </section>
+
+    <section class="layout" aria-label="Pairing workspace">
+      <div class="panel pair-panel">
+        <div class="panel-heading">
+          <div><h2>Connect with pair code or QR</h2><p>Choose the WhatsApp linking method that works best for you.</p></div>
+          <span class="badge" id="stepBadge">Step 1 of 3</span>
+        </div>
+
+        <div class="step active" id="step1">
+          <div class="method-tabs" role="tablist" aria-label="Pairing method">
+            <button class="method-tab active" id="codeModeBtn" type="button" role="tab" aria-selected="true">Pair code</button>
+            <button class="method-tab" id="qrModeBtn" type="button" role="tab" aria-selected="false">QR code</button>
+          </div>
+          <div id="codeForm">
+            <label for="phone">Phone number</label>
+            <input id="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="e.g. 254700000000">
+            <p class="hint">Use the WhatsApp number you want to link. Include the country code, without <strong>+</strong> or spaces.</p>
+            <button class="button" id="pairBtn" type="button" onclick="startPair()">Get Pair Code</button>
+          </div>
+          <div id="qrForm" style="display:none">
+            <p class="hint">Use QR mode if phone-number pairing closes before the code appears. You will scan the QR from WhatsApp Linked Devices.</p>
+            <button class="button" id="qrBtn" type="button" onclick="startPair()">Generate QR Code</button>
+          </div>
+          <div class="status" id="status1" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="step" id="step2">
+          <div id="codeChallenge">
+            <div class="code-box"><div class="code" id="pairingCode">---- ----</div><div class="code-label">Enter this code in WhatsApp Linked Devices</div></div>
+            <div class="instructions">
+              <h3>How to link with pair code</h3>
+              <ol>
+                <li>Open <strong>WhatsApp</strong> on your phone.</li>
+                <li>Open <strong>Settings → Linked Devices</strong>.</li>
+                <li>Tap <strong>Link a Device</strong>.</li>
+                <li>Select <strong>Link with phone number instead</strong>.</li>
+                <li>Enter the eight-character code shown above.</li>
+              </ol>
+            </div>
+          </div>
+          <div id="qrChallenge" style="display:none">
+            <div class="qr-box"><img id="qrImage" alt="WhatsApp pairing QR code"><div class="qr-label">Scan this QR code from WhatsApp → Linked Devices</div></div>
+            <div class="instructions">
+              <h3>How to link with QR</h3>
+              <ol>
+                <li>Open <strong>WhatsApp</strong> on your phone.</li>
+                <li>Open <strong>Settings → Linked Devices</strong>.</li>
+                <li>Tap <strong>Link a Device</strong>.</li>
+                <li>Scan the QR code shown above.</li>
+              </ol>
+            </div>
+          </div>
+          <div class="status" id="status2" role="status" aria-live="polite"><span class="spinner"></span> Preparing your pairing challenge…</div>
+          <div class="status error" id="errBox2" style="display:none" role="alert"></div>
+          <button class="back" type="button" onclick="goBack()">← Choose another pairing method</button>
+        </div>
+
+        <div class="step" id="step3">
+          <div class="success-box">
+            <div class="success-title">Linked successfully. Your SESSION_ID:</div>
+            <div class="session" id="sessionVal">KIPTENDEN~...</div>
+            <button class="copy" type="button" onclick="copySession()">Copy SESSION_ID</button>
+          </div>
+          <div class="next-steps"><strong>Next steps:</strong><br>Copy the session ID, add it as <code>SESSION_ID</code> in your Render environment variables, and redeploy the bot service.</div>
+          <button class="back" type="button" onclick="goBack()">← Link another number</button>
+        </div>
+      </div>
+
+      <aside class="panel side" id="how">
+        <h2>How it works</h2>
+        <p>The pairing page creates a fresh WhatsApp session without exposing your number in the URL.</p>
+        <div class="timeline">
+          <div class="timeline-item"><span class="number">1</span><div><strong>Choose a method</strong><span>Use pair code with your phone number or scan a QR code.</span></div></div>
+          <div class="timeline-item"><span class="number">2</span><div><strong>Link WhatsApp</strong><span>Open Linked Devices and complete the selected flow.</span></div></div>
+          <div class="timeline-item"><span class="number">3</span><div><strong>Save your session ID</strong><span>Copy it into Render as <code>SESSION_ID</code>.</span></div></div>
+        </div>
+        <div class="trust"><span>Encrypted</span><span>Instant</span><span>Secure</span></div>
+        <div class="notice">Choose pair code or QR mode. If one WhatsApp linking method fails, return here and retry with the other method.</div>
+      </aside>
+    </section>
+  </main>
+
+  <footer><strong>KIPTENDEN YOUTHS PAIR CODE + QR</strong><br>Secure WhatsApp linking for the Kiptenden Youths community bot.</footer>
+
+  <script>
+    let pollTimer = null;
+    let pollFailures = 0;
+    let pairingMode = 'code';
+
+    const $ = (id) => document.getElementById(id);
+    const stepIds = ['step1', 'step2', 'step3'];
+
+    function showStep(id, label) {
+      stepIds.forEach((step) => $(step).classList.toggle('active', step === id));
+      $('stepBadge').textContent = label;
+    }
+
+    function status(id, message, kind = '') {
+      const node = $(id);
+      node.className = `status ${kind}`.trim();
+      node.innerHTML = message;
+    }
+
+    function errorMessage(message) {
+      const node = $('errBox2');
+      node.textContent = `❌ ${message}`;
+      node.style.display = 'block';
+    }
+
+    async function readJson(response) {
+      try { return await response.json(); } catch (_) { return { ok: false, error: `Server returned HTTP ${response.status}.` }; }
+    }
+
+    function setMode(mode) {
+      pairingMode = mode;
+      const code = mode === 'code';
+      $('codeModeBtn').classList.toggle('active', code);
+      $('qrModeBtn').classList.toggle('active', !code);
+      $('codeModeBtn').setAttribute('aria-selected', String(code));
+      $('qrModeBtn').setAttribute('aria-selected', String(!code));
+      $('codeForm').style.display = code ? 'block' : 'none';
+      $('qrForm').style.display = code ? 'none' : 'block';
+      status('status1', '');
+    }
+
+    async function startPair() {
+      const phone = $('phone').value.trim().replace(/\D/g, '');
+      if (pairingMode === 'code' && (!phone || phone.length < 7)) {
+        status('status1', 'Please enter a valid number with country code.', 'error');
+        return;
+      }
+
+      const button = pairingMode === 'code' ? $('pairBtn') : $('qrBtn');
+      button.disabled = true;
+      status('status1', `<span class="spinner"></span> Starting ${pairingMode === 'code' ? 'pair-code' : 'QR'} linking…`);
+
+      try {
+        const endpoint = pairingMode === 'code' ? '/api/pair' : '/api/pair/qr';
+        const options = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+        if (pairingMode === 'code') options.body = JSON.stringify({ phone });
+        const response = await fetch(endpoint, options);
+        const data = await readJson(response);
+        if (!response.ok || !data.ok) {
+          status('status1', data.error || 'Unable to start pairing.', 'error');
+          button.disabled = false;
+          return;
+        }
+        pollFailures = 0;
+        $('errBox2').style.display = 'none';
+        $('codeChallenge').style.display = pairingMode === 'code' ? 'block' : 'none';
+        $('qrChallenge').style.display = pairingMode === 'qr' ? 'block' : 'none';
+        showStep('step2', 'Step 2 of 3');
+        status('status2', `<span class="spinner"></span> Waiting for ${pairingMode === 'code' ? 'you to enter the code' : 'QR scan'}…`);
+        clearInterval(pollTimer);
+        pollTimer = setInterval(checkStatus, 2000);
+        await checkStatus();
+      } catch (error) {
+        status('status1', `Network error: ${error.message}`, 'error');
+        button.disabled = false;
+      }
+    }
+
+    async function checkStatus() {
+      try {
+        const response = await fetch('/api/pair/status', { cache: 'no-store' });
+        const data = await readJson(response);
+        pollFailures = 0;
+        if (data.code) $('pairingCode').textContent = data.code;
+        if (data.qrDataUrl) $('qrImage').src = data.qrDataUrl;
+        if (data.status === 'ready' && pairingMode === 'qr' && data.qrDataUrl) {
+          status('status2', 'Scan the QR code from WhatsApp → Settings → Linked Devices.');
+        }
+        if (data.status === 'success' && data.sessionId) {
+          clearInterval(pollTimer);
+          $('sessionVal').textContent = data.sessionId;
+          showStep('step3', 'Step 3 of 3');
+          return;
+        }
+        if (data.status === 'error') {
+          clearInterval(pollTimer);
+          errorMessage(data.error || 'Pairing failed. Try again.');
+          status('status2', 'Pairing failed. You can go back and retry.', 'error');
+        }
+      } catch (_) {
+        pollFailures += 1;
+        if (pollFailures >= 4) status('status2', 'Still waiting for the Render service…', 'error');
+      }
+    }
+
+    async function copySession() {
+      const value = $('sessionVal').textContent;
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch (_) {
+        const area = document.createElement('textarea');
+        area.value = value;
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        area.remove();
+      }
+      const button = document.querySelector('.copy');
+      button.textContent = 'Copied';
+      setTimeout(() => { button.textContent = 'Copy SESSION_ID'; }, 2200);
+    }
+
+    function goBack() {
+      clearInterval(pollTimer);
+      fetch('/api/pair/cancel').catch(() => {});
+      $('pairBtn').disabled = false;
+      $('qrBtn').disabled = false;
+      $('pairingCode').textContent = '---- ----';
+      $('qrImage').removeAttribute('src');
+      $('sessionVal').textContent = 'KIPTENDEN~...';
+      $('errBox2').style.display = 'none';
+      setMode('code');
+      status('status1', '');
+      status('status2', '<span class="spinner"></span> Preparing your pairing challenge…');
+      showStep('step1', 'Step 1 of 3');
+      $('phone').focus();
+    }
+
+    $('codeModeBtn').addEventListener('click', () => setMode('code'));
+    $('qrModeBtn').addEventListener('click', () => setMode('qr'));
+    if (window.location.pathname === '/pair/qr') setMode('qr');
+    $('phone').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') startPair();
+    });
+  </script>
+</body>
+</html>
