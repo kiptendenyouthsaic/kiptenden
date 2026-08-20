@@ -16,21 +16,84 @@ const {
     KiptendenAntibad,
     KiptendenAntiBot,
     KiptendenAntiSticker,
-    handleGameMessage,
+    
     KiptendenAntiGroupMention,
     getGroupMetadata,
     KiptendenAntiEdit,
     DEFAULT_SETTINGS,
 } = require(".");
 
+let cachedGameMessageHandler;
+let gameMessageHandlerResolved = false;
+
+function getGameMessageHandler() {
+    if (gameMessageHandlerResolved) return cachedGameMessageHandler;
+    gameMessageHandlerResolved = true;
+
+    const modulePaths = [
+        "./gamehandler",
+        "./gameHandler",
+        "./gamehandler_fixed",
+        "./gameHandler_fixed",
+        ".",
+    ];
+
+    for (const modulePath of modulePaths) {
+        try {
+            const loaded = require(modulePath);
+            if (typeof loaded.handleGameMessage === "function") {
+                cachedGameMessageHandler = loaded.handleGameMessage;
+                break;
+            }
+        } catch (_) {
+            // Try the next supported module path.
+        }
+    }
+
+    if (!cachedGameMessageHandler) {
+        console.error("[GAME] handleGameMessage() was not found");
+    }
+
+    return cachedGameMessageHandler;
+}
+
+function shouldDispatchGameMessage(message) {
+    const messageId = message?.key?.id;
+    if (!messageId) return true;
+
+    if (!global.__gameMessagesProcessed) {
+        global.__gameMessagesProcessed = new Set();
+    }
+
+    if (global.__gameMessagesProcessed.has(messageId)) return false;
+    global.__gameMessagesProcessed.add(messageId);
+    setTimeout(() => global.__gameMessagesProcessed.delete(messageId), 60000);
+    return true;
+}
+
+async function dispatchGameMessageOnce(Kiptenden, message) {
+    if (message?.key?.fromMe || message?.key?.remoteJid === "status@broadcast") return;
+    if (!shouldDispatchGameMessage(message)) return;
+
+    const handler = getGameMessageHandler();
+    if (!handler) return;
+
+    try {
+        await handler(Kiptenden, message);
+    } catch (error) {
+        console.error("[GAME] handleGameMessage failed:", error.stack || error);
+    }
+}
+
 const {
+
     findAntiDelete,
     removeAntiDelete,
     saveAntiDelete,
 } = require("./database/messageStore");
 
 async function resolveRealJid(Kiptenden, jid) {
-    if (!jid) return null;
+    if (!jid || typeof jid !== "string") return null;
     if (!jid.endsWith("@lid")) return jid;
     try {
         const { getLidMapping } = require("./connection/groupCache");
@@ -88,12 +151,13 @@ function setupAutoReact(Kiptenden) {
 }
 
 function setupAntiDelete(Kiptenden) {
-    const botJid = `${Kiptenden.user?.id.split(":")[0]}@s.whatsapp.net`;
+    const botId = String(Kiptenden.user?.id || "").split(":")[0];
+    const botJid = botId ? `${botId}@s.whatsapp.net` : null;
     const botOwnerJid = botJid;
 
     const getSender = (ms) => {
         const key = ms.key;
-        const realJid = (j) => j && !j.endsWith("@lid") ? j : null;
+        const realJid = (j) => typeof j === "string" && !j.endsWith("@lid") ? j : null;
         return (
             realJid(key.participantPn) ||
             realJid(key.senderPn) ||
@@ -260,16 +324,40 @@ function setupChatBotAndAntiLink(Kiptenden) {
         for (const message of messages) {
             if (!message?.message) continue;
             const from = message.key?.remoteJid || "";
-            if (message.key.fromMe && !from.endsWith("@g.us")) continue;
+            if (message.key?.fromMe) continue;
 
             if (from.endsWith("@g.us")) {
-                await KiptendenAntiLink(Kiptenden, message, getGroupMetadata);
-                await KiptendenAntibad(Kiptenden, message, getGroupMetadata);
-                await KiptendenAntiBot(Kiptenden, message, getGroupMetadata);
-                await KiptendenAntiSticker(Kiptenden, message, getGroupMetadata);
+                try {
+                    await KiptendenAntiLink(Kiptenden, message, getGroupMetadata);
+                } catch (error) {
+                    console.error("[AntiLink] Handler failed:", error.message);
+                }
+                try {
+                    await KiptendenAntibad(Kiptenden, message, getGroupMetadata);
+                } catch (error) {
+                    console.error("[AntiBad] Handler failed:", error.message);
+                }
+                try {
+                    await KiptendenAntiBot(Kiptenden, message, getGroupMetadata);
+                } catch (error) {
+                    console.error("[AntiBot] Handler failed:", error.message);
+                }
+                try {
+                    await KiptendenAntiSticker(Kiptenden, message, getGroupMetadata);
+                } catch (error) {
+                    console.error("[AntiSticker] Handler failed:", error.message);
+                }
             }
-            await KiptendenAntiGroupMention(Kiptenden, message, getGroupMetadata);
-            await handleGameMessage(Kiptenden, message);
+
+            try {
+                await KiptendenAntiGroupMention(Kiptenden, message, getGroupMetadata);
+            } catch (error) {
+                console.error("[AntiGroupMention] Handler failed:", error.message);
+            }
+
+            // Dispatch normal game messages last, but independently of the
+            // moderation features so a moderation error cannot freeze a game.
+            await dispatchGameMessageOnce(Kiptenden, message);
         }
     });
 }
