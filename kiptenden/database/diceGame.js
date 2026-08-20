@@ -1,6 +1,13 @@
-
 const { DATABASE } = require('./database');
 const { DataTypes } = require('sequelize');
+const { samePlayer: databaseSamePlayer } = require('./games');
+
+const sameJid = (left, right) => {
+    if (typeof databaseSamePlayer === 'function') {
+        return databaseSamePlayer(left, right);
+    }
+    return String(left || '') === String(right || '');
+};
 
 const DiceDB = DATABASE.define('DiceGame', {
     id: {
@@ -63,164 +70,180 @@ const DiceDB = DATABASE.define('DiceGame', {
 });
 
 let diceDbInitialized = false;
+
 async function initDiceDB() {
     if (diceDbInitialized) return;
+
     try {
         await DiceDB.sync();
         diceDbInitialized = true;
     } catch (error) {
-        console.error('DiceDB sync error:', error.message);
+        console.error('DiceDB sync error:', error.stack || error);
+        throw error;
     }
 }
 
-async function createDiceGame(chatJid, player1, rounds = 3) {
-    await initDiceDB();
-    await DiceDB.destroy({ where: { chatJid } });
-    
-    const game = await DiceDB.create({
-        chatJid,
-        player1,
-        player2: null,
-        player1Roll: null,
-        player2Roll: null,
-        currentTurn: null,
-        rounds: Math.min(Math.max(rounds, 1), 10),
-        currentRound: 1,
-        player1Score: 0,
-        player2Score: 0,
-        status: 'waiting',
-    });
-    return game;
-}
-
-async function joinDiceGame(chatJid, player2) {
-    await initDiceDB();
-    const game = await DiceDB.findOne({
-        where: { chatJid, status: 'waiting' }
-    });
-    
-    if (!game) return { error: 'no_game' };
-    if (game.player1 === player2) return { error: 'same_player' };
-    
-    game.player2 = player2;
-    game.status = 'active';
-    game.currentTurn = game.player1;
-    await game.save();
-    
-    return {
-        player1: game.player1,
-        player2: game.player2,
-        rounds: game.rounds,
-        game
-    };
-}
-
-async function getDiceGame(chatJid) {
-    await initDiceDB();
-    return await DiceDB.findOne({ where: { chatJid } });
-}
-
-async function getActiveDiceGame(chatJid) {
-    await initDiceDB();
-    return await DiceDB.findOne({
-        where: { chatJid, status: 'active' }
-    });
-}
-
-async function getWaitingDiceGame(chatJid) {
-    await initDiceDB();
-    return await DiceDB.findOne({
-        where: { chatJid, status: 'waiting' }
-    });
+function clampRounds(rounds) {
+    const value = Number.parseInt(rounds, 10);
+    if (!Number.isFinite(value)) return 3;
+    return Math.min(Math.max(value, 1), 10);
 }
 
 function rollDice() {
     return Math.floor(Math.random() * 6) + 1;
 }
 
+async function createDiceGame(chatJid, player1, rounds = 3) {
+    await initDiceDB();
+    await DiceDB.destroy({ where: { chatJid } });
+
+    return DiceDB.create({
+        chatJid,
+        player1,
+        player2: null,
+        player1Roll: null,
+        player2Roll: null,
+        currentTurn: null,
+        rounds: clampRounds(rounds),
+        currentRound: 1,
+        player1Score: 0,
+        player2Score: 0,
+        status: 'waiting',
+        isAiGame: false,
+    });
+}
+
+async function joinDiceGame(chatJid, player2) {
+    await initDiceDB();
+
+    const game = await DiceDB.findOne({
+        where: { chatJid, status: 'waiting' },
+    });
+
+    if (!game) return { error: 'no_game' };
+    if (sameJid(game.player1, player2)) return { error: 'same_player' };
+
+    game.player2 = player2;
+    game.status = 'active';
+    game.currentTurn = game.player1;
+    await game.save();
+
+    return {
+        player1: game.player1,
+        player2: game.player2,
+        rounds: game.rounds,
+        totalRounds: game.rounds,
+        game,
+    };
+}
+
+async function getDiceGame(chatJid) {
+    await initDiceDB();
+    return DiceDB.findOne({ where: { chatJid } });
+}
+
+async function getActiveDiceGame(chatJid) {
+    await initDiceDB();
+    return DiceDB.findOne({ where: { chatJid, status: 'active' } });
+}
+
+async function getWaitingDiceGame(chatJid) {
+    await initDiceDB();
+    return DiceDB.findOne({ where: { chatJid, status: 'waiting' } });
+}
+
 async function playerRoll(chatJid, player) {
     await initDiceDB();
+
     const game = await DiceDB.findOne({
-        where: { chatJid, status: 'active' }
+        where: { chatJid, status: 'active' },
     });
-    
+
     if (!game) return { error: 'no_game' };
-    if (game.currentTurn !== player) return { error: 'not_your_turn' };
-    
+
+    const isPlayer1 = sameJid(player, game.player1);
+    const isPlayer2 = sameJid(player, game.player2);
+
+    if (!isPlayer1 && !isPlayer2) return { error: 'not_a_player' };
+    if (!sameJid(game.currentTurn, player)) return { error: 'not_your_turn' };
+
     const roll = rollDice();
-    const isPlayer1 = player === game.player1;
-    
+
     if (isPlayer1) {
         game.player1Roll = roll;
         game.currentTurn = game.player2;
     } else {
         game.player2Roll = roll;
     }
-    
+
     await game.save();
-    
-    if (game.player1Roll !== null && game.player2Roll !== null) {
-        let roundWinner = null;
-        if (game.player1Roll > game.player2Roll) {
-            game.player1Score += 1;
-            roundWinner = game.player1;
-        } else if (game.player2Roll > game.player1Roll) {
-            game.player2Score += 1;
-            roundWinner = game.player2;
-        }
-        
-        const roundResult = {
+
+    if (game.player1Roll === null || game.player2Roll === null) {
+        return {
             roll,
-            player1Roll: game.player1Roll,
-            player2Roll: game.player2Roll,
-            roundWinner,
-            player1Score: game.player1Score,
-            player2Score: game.player2Score,
-            currentRound: game.currentRound,
+            waitingFor: game.currentTurn,
             player1: game.player1,
             player2: game.player2,
-        };
-        
-        if (game.currentRound >= game.rounds) {
-            game.status = 'finished';
-            await game.save();
-            
-            let gameWinner = null;
-            if (game.player1Score > game.player2Score) {
-                gameWinner = game.player1;
-            } else if (game.player2Score > game.player1Score) {
-                gameWinner = game.player2;
-            }
-            
-            return {
-                ...roundResult,
-                gameFinished: true,
-                gameWinner,
-                finalScore: {
-                    [game.player1]: game.player1Score,
-                    [game.player2]: game.player2Score,
-                }
-            };
-        }
-        
-        game.currentRound += 1;
-        game.player1Roll = null;
-        game.player2Roll = null;
-        game.currentTurn = game.player1;
-        await game.save();
-        
-        return {
-            ...roundResult,
-            nextRound: game.currentRound,
-            roundComplete: true,
+            currentRound: game.currentRound,
+            game,
         };
     }
-    
-    return {
+
+    let roundWinner = null;
+    if (game.player1Roll > game.player2Roll) {
+        game.player1Score += 1;
+        roundWinner = game.player1;
+    } else if (game.player2Roll > game.player1Roll) {
+        game.player2Score += 1;
+        roundWinner = game.player2;
+    }
+
+    const roundResult = {
         roll,
-        waitingFor: game.currentTurn,
+        player1Roll: game.player1Roll,
+        player2Roll: game.player2Roll,
+        roundWinner,
+        player1Score: game.player1Score,
+        player2Score: game.player2Score,
+        currentRound: game.currentRound,
         player1: game.player1,
         player2: game.player2,
+    };
+
+    if (game.currentRound >= game.rounds) {
+        game.status = 'finished';
+        await game.save();
+
+        let gameWinner = null;
+        if (game.player1Score > game.player2Score) {
+            gameWinner = game.player1;
+        } else if (game.player2Score > game.player1Score) {
+            gameWinner = game.player2;
+        }
+
+        return {
+            ...roundResult,
+            gameFinished: true,
+            gameWinner,
+            finalScore: {
+                [game.player1]: game.player1Score,
+                [game.player2]: game.player2Score,
+            },
+            game,
+        };
+    }
+
+    game.currentRound += 1;
+    game.player1Roll = null;
+    game.player2Roll = null;
+    game.currentTurn = game.player1;
+    await game.save();
+
+    return {
+        ...roundResult,
+        nextRound: game.currentRound,
+        roundComplete: true,
+        game,
     };
 }
 
