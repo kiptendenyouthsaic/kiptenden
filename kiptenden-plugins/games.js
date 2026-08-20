@@ -69,6 +69,117 @@ initGamesDB();
 initWcgDB();
 initDiceDB();
 
+// -----------------------------------------------------------------------------
+// Shared helpers
+// -----------------------------------------------------------------------------
+
+const isSamePlayerInList = (players, sender) =>
+    Array.isArray(players) && players.some((player) => samePlayer(player, sender));
+
+const parseBoard = (value) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== "string") return null;
+
+    try {
+        return JSON.parse(value);
+    } catch (error) {
+        console.error("[GAMES] Unable to parse TicTacToe board:", error);
+        return null;
+    }
+};
+
+const sendTttState = async (from, Kiptenden, game, result) => {
+    const board = parseBoard(result?.board ?? result?.game?.board ?? game?.board);
+    const player1 = result?.player1 ?? result?.game?.player1 ?? game?.player1;
+    const player2 = result?.player2 ?? result?.game?.player2 ?? game?.player2;
+    const nextPlayer = result?.nextPlayer ?? result?.currentTurn ?? result?.game?.currentTurn ?? game?.currentTurn;
+    const winner = result?.winner ?? result?.gameWinner;
+    const gameFinished = Boolean(
+        result?.gameFinished ||
+        result?.finished ||
+        result?.status === "finished" ||
+        result?.status === "completed" ||
+        winner ||
+        result?.draw
+    );
+
+    let text = `🎮 *TIC TAC TOE*\n\n`;
+    if (player1) text += `Player 1: @${getPlayerName(player1)} (❌)\n`;
+    if (player2 && player2 !== BOT_JID) text += `Player 2: @${getPlayerName(player2)} (⭕)\n`;
+    else text += "Player 2: 🤖 AI (⭕)\n";
+
+    if (board) text += `\n${renderBoard(board)}\n`;
+
+    if (gameFinished) {
+        if (winner === BOT_JID) text += "\n🏆 *AI wins!*";
+        else if (winner) text += `\n🏆 *Winner:* @${getPlayerName(winner)}`;
+        else text += "\n🤝 *It's a draw!*";
+    } else if (nextPlayer) {
+        const symbol = samePlayer(nextPlayer, player1) ? "❌" : "⭕";
+        text += `\n@${getPlayerName(nextPlayer)}'s turn (${symbol})`;
+    }
+
+    const mentions = [player1, player2, nextPlayer, winner]
+        .filter((jid) => jid && jid !== BOT_JID);
+
+    await Kiptenden.sendMessage(from, { text, mentions });
+    return { board, player1, player2, nextPlayer, gameFinished, winner };
+};
+
+const processTttMove = async (from, Kiptenden, sender, position) => {
+    const game = await getActiveGame(from);
+    if (!game) return false;
+
+    const result = await makeMove(from, sender, Number(position));
+    if (!result) {
+        await Kiptenden.sendMessage(from, {
+            text: "❌ The move could not be processed. Please try again.",
+        });
+        return true;
+    }
+
+    if (result.error === "not_your_turn") {
+        await Kiptenden.sendMessage(from, { text: "❌ It's not your turn!" });
+        return true;
+    }
+
+    if (result.error) {
+        const messages = {
+            invalid_move: "❌ That position is invalid or already occupied.",
+            invalid_position: "❌ Choose a number from 1 to 9.",
+            game_not_found: "❌ The game is no longer active.",
+        };
+        await Kiptenden.sendMessage(from, {
+            text: messages[result.error] || `❌ Move failed: ${result.error}`,
+        });
+        return true;
+    }
+
+    const state = await sendTttState(from, Kiptenden, game, result);
+    if (state.gameFinished) {
+        await endGame(from);
+        clearGameTimeout(from);
+        return true;
+    }
+
+    if (game.isAiGame && state.nextPlayer === BOT_JID) {
+        await Kiptenden.sendMessage(from, { text: "🤖 AI is thinking..." });
+        if (typeof handleAiTttMove === "function") {
+            await handleAiTttMove(from, Kiptenden, result.game ?? result);
+        } else {
+            await Kiptenden.sendMessage(from, {
+                text: "❌ The Tic-Tac-Toe AI handler is not available.",
+            });
+        }
+        return true;
+    }
+
+    if (state.nextPlayer) {
+        setMoveTimeout(from, Kiptenden, state.nextPlayer, state.player2, state.player1);
+    }
+    return true;
+};
+
 gmd({
     pattern: "games",
     aliases: ["game", "playgame", "playgames", "gamelist"],
@@ -188,6 +299,22 @@ gmd({
     setJoinTimeout(from, Kiptenden, sender);
 });
 
+// The command router must receive numeric messages as gameplay moves.
+// These registrations support both .1 ... .9 and routers that expose a
+// no-prefix numeric message as a command pattern.
+for (const position of ["1", "2", "3", "4", "5", "6", "7", "8", "9"]) {
+    gmd({
+        pattern: position,
+        aliases: [],
+        react: "⭕",
+        category: "game",
+        description: `Make Tic-Tac-Toe move ${position}`,
+    }, async (from, Kiptenden, conText) => {
+        const { sender } = conText;
+        await processTttMove(from, Kiptenden, sender, position);
+    });
+}
+
 gmd({
     pattern: "tttend",
     aliases: ["endttt", "tttcancel", "ttstop", "tictactoestop", "tictactoeend", "stopttt", "cancelttt"],
@@ -224,7 +351,7 @@ gmd({
 
 gmd({
     pattern: "tttjoin",
-    aliases: ["jointtt"],
+    aliases: ["jointtt", "join"],
     react: "✅",
     category: "game",
     description: "Join a waiting TicTacToe game",
@@ -303,7 +430,7 @@ gmd({
     const existingWaiting = await getWaitingWcgGame(from);
     if (existingWaiting) {
         const waitingPlayers = JSON.parse(existingWaiting.players || "[]");
-        if (waitingPlayers.includes(sender)) {
+        if (isSamePlayerInList(waitingPlayers, sender)) {
             return await Kiptenden.sendMessage(from, {
                 text: "⏳ You are already in the waiting Word Chain game. The host can use *.wcgbegin* to start it, or more players can join with *.wcg*.",
             });
@@ -380,7 +507,13 @@ gmd({
 }, async (from, Kiptenden, conText) => {
     const { sender } = conText;
     
-    const result = await joinWcgGame(from, sender);
+const result = await joinWcgGame(from, sender);
+
+    if (!result) {
+        return await Kiptenden.sendMessage(from, {
+            text: "❌ Unable to join the Word Chain game. Please try again.",
+        });
+    }
     
     if (result.error === 'no_game') {
         return await Kiptenden.sendMessage(from, {
@@ -427,7 +560,7 @@ gmd({
     }
     
     const players = JSON.parse(waitingGame.players);
-    if (players[0] !== sender) {
+    if (!samePlayer(players[0], sender)) {
         return await Kiptenden.sendMessage(from, {
             text: "❌ Only the host can start the game!",
 
@@ -473,7 +606,7 @@ gmd({
     }
     
     const players = JSON.parse(game.players);
-    const isPlayer = players.includes(sender);
+    const isPlayer = isSamePlayerInList(players, sender);
     if (!isPlayer && !isSuperUser) {
         return await Kiptenden.sendMessage(from, {
             text: "❌ Only players or admins can end the game!",
@@ -735,16 +868,28 @@ gmd({
         });
     }
     
-    clearDiceTimeout(from);
     const result = await playerRoll(from, sender);
     
+    if (!result) {
+        return await Kiptenden.sendMessage(from, {
+            text: "❌ The dice roll could not be processed. Please try again.",
+        });
+    }
+
     if (result.error === 'not_your_turn') {
         return await Kiptenden.sendMessage(from, {
             text: "❌ It's not your turn!",
-
         });
     }
-    
+
+    if (result.error) {
+        return await Kiptenden.sendMessage(from, {
+            text: `❌ Dice error: ${result.error}`,
+        });
+    }
+
+    clearDiceTimeout(from);
+
     if (result.roundComplete || result.gameFinished) {
         let text = `🎲 *Round ${result.currentRound} Results*\n\n`;
         text += `${getDiceEmoji(result.player1Roll)} @${getPlayerName(result.player1)}: ${result.player1Roll}\n`;
@@ -956,7 +1101,8 @@ gmd({
         mentions: [sender],
     });
     
-    setWcgTurnTimeout(from, Kiptenden, sender, null);
+    const activeAiGame = await getActiveWcgGame(from);
+    setWcgTurnTimeout(from, Kiptenden, sender, activeAiGame);
 });
 
 gmd({
@@ -1008,7 +1154,8 @@ gmd({
         mentions: [sender],
     });
     
-    setDiceTurnTimeout(from, Kiptenden, sender, null);
+    const activeAiGame = await getActiveDiceGame(from);
+    setDiceTurnTimeout(from, Kiptenden, sender, activeAiGame);
 });
 
 module.exports = {};
