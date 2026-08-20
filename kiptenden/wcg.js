@@ -1,40 +1,86 @@
 const wcgTimeouts = new Map();
 const wcgJoinTimeouts = new Map();
 
-function clearWcgTimeout(chatJid) {
-    if (wcgTimeouts.has(chatJid)) {
-        clearTimeout(wcgTimeouts.get(chatJid));
-        wcgTimeouts.delete(chatJid);
+function clearTimer(map, chatJid) {
+    const timeout = map.get(chatJid);
+    if (timeout) {
+        clearTimeout(timeout);
+        map.delete(chatJid);
     }
+}
+
+function clearWcgTimeout(chatJid) {
+    clearTimer(wcgTimeouts, chatJid);
 }
 
 function clearWcgJoinTimeout(chatJid) {
-    if (wcgJoinTimeouts.has(chatJid)) {
-        clearTimeout(wcgJoinTimeouts.get(chatJid));
-        wcgJoinTimeouts.delete(chatJid);
-    }
+    clearTimer(wcgJoinTimeouts, chatJid);
 }
 
-function setWcgJoinTimeout(chatJid, callback) {
-    clearWcgJoinTimeout(chatJid);
-    const timeout = setTimeout(callback, 30000);
-    wcgJoinTimeouts.set(chatJid, timeout);
+function setManagedTimeout(map, chatJid, callback, delay) {
+    const oldTimeout = map.get(chatJid);
+    if (oldTimeout) clearTimeout(oldTimeout);
+
+    let timeout;
+    timeout = setTimeout(() => {
+        if (map.get(chatJid) === timeout) {
+            map.delete(chatJid);
+        }
+
+        try {
+            Promise.resolve(callback()).catch((error) => {
+                console.error('[WCG] Timeout callback error:', error.stack || error);
+            });
+        } catch (error) {
+            console.error('[WCG] Timeout callback error:', error.stack || error);
+        }
+    }, Math.max(0, Number(delay) || 0));
+
+    map.set(chatJid, timeout);
+    return timeout;
+}
+
+function setWcgJoinTimeout(chatJid, callback, delay = 30000) {
+    if (typeof callback !== 'function') {
+        throw new TypeError('setWcgJoinTimeout requires a callback function');
+    }
+    return setManagedTimeout(wcgJoinTimeouts, chatJid, callback, delay);
 }
 
 function getPlayerName(jid) {
-    return jid.split('@')[0];
+    return String(jid || 'unknown').split('@')[0];
+}
+
+function normalizeScores(scores) {
+    if (typeof scores === 'string') {
+        try {
+            scores = JSON.parse(scores);
+        } catch {
+            scores = {};
+        }
+    }
+
+    return scores && typeof scores === 'object' && !Array.isArray(scores)
+        ? scores
+        : {};
 }
 
 function formatScores(scores) {
-    return Object.entries(scores)
-        .sort((a, b) => b[1] - a[1])
-        .map(([jid, score], i) => `${i + 1}. @${getPlayerName(jid)}: ${score} pts`)
+    return Object.entries(normalizeScores(scores))
+        .map(([jid, score]) => [jid, Number(score) || 0])
+        .sort((left, right) => right[1] - left[1])
+        .map(([jid, score], index) => {
+            return `${index + 1}. @${getPlayerName(jid)}: ${score} pts`;
+        })
         .join('\n');
 }
 
 function getDiceEmoji(value) {
     const diceEmojis = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-    return diceEmojis[value - 1] || '🎲';
+    const number = Number(value);
+    return Number.isInteger(number) && number >= 1 && number <= 6
+        ? diceEmojis[number - 1]
+        : '🎲';
 }
 
 module.exports = {
@@ -47,4 +93,3 @@ module.exports = {
     formatScores,
     getDiceEmoji,
 };
-
