@@ -1736,14 +1736,26 @@ gmd(
         statusPayload.text = q;
       }
 
-      // Post to status@broadcast with the group's participant list so all
-      // group members see the status. sendMessage('status@broadcast', ...,
-      // { statusJidList }) is Baileys' native status pathway and handles media
-      // upload + encryption correctly. The previous groupStatusMessageV2 approach
-      // was silently stripped by normalizeMessageContent at send time.
-      const groupParticipants = groupMeta.participants.map(p => p.id);
-      await Kiptenden.sendMessage("status@broadcast", statusPayload, {
-        statusJidList: groupParticipants,
+      // Group status is a distinct WhatsApp message type. It must be addressed
+      // to the group JID and wrapped in groupStatusMessageV2; status@broadcast
+      // creates a normal personal Story with a selected audience instead.
+      const statusContent = await baileys.generateWAMessageContent(statusPayload, {
+        upload: Kiptenden.waUploadToServer,
+      });
+      const groupStatus = baileys.generateWAMessageFromContent(
+        from,
+        {
+          groupStatusMessageV2: {
+            message: statusContent,
+          },
+        },
+        {
+          userJid: Kiptenden.user?.id,
+        },
+      );
+
+      await Kiptenden.relayMessage(from, groupStatus.message, {
+        messageId: groupStatus.key.id,
       });
       await react("✅");
     } catch (error) {
