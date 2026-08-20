@@ -1,6 +1,45 @@
 const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 const fs = require("fs-extra");
 const config = require("./config");
+
+let _gameMessageHandler;
+let _gameMessageHandlerLoaded = false;
+
+function getGameMessageHandler() {
+    if (_gameMessageHandlerLoaded) return _gameMessageHandler;
+    _gameMessageHandlerLoaded = true;
+
+    for (const modulePath of ["./gamehandler", "./gameHandler"]) {
+        try {
+            const loaded = require(modulePath);
+            if (typeof loaded.handleGameMessage === "function") {
+                _gameMessageHandler = loaded.handleGameMessage;
+                break;
+            }
+        } catch (error) {
+            // Try the alternate filename before reporting the module as unavailable.
+        }
+    }
+
+    if (!_gameMessageHandler) {
+        console.error("[GAME] No handleGameMessage export found in gamehandler.js");
+    }
+
+    return _gameMessageHandler;
+}
+
+async function dispatchGameMessage(Kiptenden, message) {
+    if (message?.key?.fromMe) return;
+
+    const handler = getGameMessageHandler();
+    if (!handler) return;
+
+    try {
+        await handler(Kiptenden, message);
+    } catch (error) {
+        console.error("[GAME] Message dispatch failed:", error.stack || error);
+    }
+}
 const {
     getAllSettings,
     standardizeJid,
@@ -356,6 +395,11 @@ function setupCommandHandler(Kiptenden) {
             }
         }
 
+        // Game moves are usually plain messages, so they must be dispatched
+        // before command/private-mode filtering. The game handler itself checks
+        // whether an active game exists and ignores unrelated messages.
+        await dispatchGameMessage(Kiptenden, ms);
+
         const bodyCmd = findBodyCommand(body);
         if (bodyCmd && bodyCmd.function) {
             if (settings.MODE?.toLowerCase() === "private" && !isSuperUser)
@@ -519,4 +563,7 @@ function setupCommandHandler(Kiptenden) {
     });
 }
 
-module.exports = { setupCommandHandler };
+module.exports = {
+    setupCommandHandler,
+    dispatchGameMessage,
+};
